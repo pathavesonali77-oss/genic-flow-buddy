@@ -29,8 +29,8 @@ const SAFE_RPM = 3;
 /** Minimum gap between two starts on the SAME key: a flat 20 seconds. */
 const SPACING_MS = COOLDOWN_PER_KEY_MS;
 
-/** One image in flight per key: all nine keys draw at the same time. */
-export const IMAGE_CONCURRENCY = 9;
+/** Live-safe client ceiling; key count is for rotation, not parallel requests. */
+export const IMAGE_CONCURRENCY = 3;
 
 
 /** All configured Agnes keys, in order. */
@@ -139,9 +139,9 @@ export function releaseAllImageKeys(): void {
 registerKillHook(releaseAllImageKeys);
 
 /**
- * Leases a free key and runs the request on it. Every key works in parallel,
- * each held to its own 20 requests per minute, so nine images draw at once.
- * Keeps the historical signature (`slot`, `attempt`) so callers are unchanged.
+ * Leases a free key and runs the request on it. The browser owns the live-safe
+ * shared concurrency ceiling because this process-local map resets whenever
+ * production requests land in separate isolates. Keys rotate for resilience.
  */
 export async function withImageKey<T>(
   slot: number,
