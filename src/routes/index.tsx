@@ -119,6 +119,8 @@ const PROMPT_RANGE = 15;
  */
 const IMAGE_CONCURRENCY = 9;
 const IMAGE_BATCH = 1;
+/** Agnes' shared edge allows 20 starts/minute; pace starts instead of bursting nine at once. */
+const IMAGE_START_GAP_MS = 3_200;
 /**
  * The server already downloads and validates every finished image (complete
  * file + entropy) before returning its URL, so re-downloading and decoding it
@@ -841,6 +843,17 @@ function Index() {
       // onto the queue — with everyone already gone, the automatic retry
       // silently never happened. This is what made retries look broken.
       let inFlight = 0;
+      // Reserve start times synchronously before awaiting. This prevents all
+      // nine workers from consuming one key each in the same instant, which
+      // synchronized every key's cooldown and made progress stop after panel 9.
+      let nextImageStart = 0;
+      const awaitImageStart = async () => {
+        const now = Date.now();
+        const reserved = Math.max(now, nextImageStart);
+        nextImageStart = reserved + IMAGE_START_GAP_MS;
+        const wait = reserved - now;
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      };
 
       let workerId = 0;
       const worker = async () => {
@@ -866,6 +879,8 @@ function Index() {
           }
           const wait = cooldownUntil - Date.now();
           if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+          await awaitImageStart();
+          if (cancelRef.current) return;
 
           inFlight++;
           group.forEach((g) => record(g.seg.index, { status: "drawing" }));
