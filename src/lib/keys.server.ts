@@ -105,6 +105,12 @@ function laneReady(l: Lane, now: number): boolean {
 /** Round-robin cursor so load spreads evenly across the keys. */
 let cursor = 0;
 
+/** Stable first lane for a job, including when every request gets a fresh isolate. */
+export function imageKeyStartIndex(slot: number, attempt: number, keyCount: number): number {
+  if (keyCount <= 0) return 0;
+  return ((slot + attempt) % keyCount + keyCount) % keyCount;
+}
+
 /**
  * Parks ONLY the key that actually hit 429/1015.
  *
@@ -154,7 +160,7 @@ export async function withImageKey<T>(
     // sends all first-wave jobs to key 1. Use the browser-assigned slot as the
     // stable starting lane, then move on each retry. The local cursor remains a
     // tie-breaker when several requests share one isolate.
-    const preferred = ((slot + attempt) % keys.length + keys.length) % keys.length;
+    const preferred = imageKeyStartIndex(slot, attempt, keys.length);
     for (let i = 0; i < keys.length; i++) {
       const idx = (preferred + cursor + i) % keys.length;
       const candidate = keys[idx] as string;
