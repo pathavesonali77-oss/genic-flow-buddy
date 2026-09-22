@@ -138,8 +138,8 @@ registerKillHook(releaseAllImageKeys);
  * Keeps the historical signature (`slot`, `attempt`) so callers are unchanged.
  */
 export async function withImageKey<T>(
-  _slot: number,
-  _attempt: number,
+  slot: number,
+  attempt: number,
   fn: (key: string, keyIndex: number) => Promise<T>,
 ): Promise<T> {
   const keys = agnesKeys();
@@ -149,12 +149,18 @@ export async function withImageKey<T>(
     // here silently for the rest of the process's life.
     assertActive();
     const now = Date.now();
+    // Serverless requests frequently execute in separate isolates. In that
+    // case every isolate has a fresh cursor (zero), so cursor-only selection
+    // sends all first-wave jobs to key 1. Use the browser-assigned slot as the
+    // stable starting lane, then move on each retry. The local cursor remains a
+    // tie-breaker when several requests share one isolate.
+    const preferred = ((slot + attempt) % keys.length + keys.length) % keys.length;
     for (let i = 0; i < keys.length; i++) {
-      const idx = (cursor + i) % keys.length;
+      const idx = (preferred + cursor + i) % keys.length;
       const candidate = keys[idx] as string;
       if (laneReady(laneFor(candidate), now)) {
         chosen = idx;
-        cursor = (idx + 1) % keys.length;
+        cursor = (cursor + 1) % keys.length;
         break;
       }
     }
