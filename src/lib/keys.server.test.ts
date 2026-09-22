@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, test } from "node:test";
+import assert from "node:assert/strict";
 import { releaseAllImageKeys, withImageKey } from "./keys.server";
 
 const names = Array.from({ length: 9 }, (_, index) => `AGNES_API_KEY_${index + 1}`);
@@ -18,7 +19,7 @@ describe("Agnes key scheduling", () => {
       names.map((_, slot) => withImageKey(slot, 0, async (_key, keyIndex) => keyIndex)),
     );
 
-    expect(new Set(selected).size).toBe(9);
-    expect(selected.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.equal(new Set(selected).size, 9);
+    assert.deepEqual(selected.sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
