@@ -113,14 +113,14 @@ const PROMPT_RANGE = 15;
 
 /**
  * Image pipeline shape: one paced queue, rotating Agnes keys, and one model
- * (agnes-image-2.5-flash). Agnes applies its 20 RPM edge limit to the shared
- * connection, so overlapping browser lanes trigger error 1015 after four
- * panels even when they use different keys.
+ * (agnes-image-2.5-flash). Live hosting can place each server call in a fresh
+ * isolate, so server-memory leases cannot enforce a shared concurrency limit.
+ * Keep the authoritative limit here, where one browser owns the whole run.
  */
-const IMAGE_CONCURRENCY = 9;
+const IMAGE_CONCURRENCY = 3;
 const IMAGE_BATCH = 1;
-/** Agnes' shared edge allows 20 starts/minute; pace starts instead of bursting nine at once. */
-const IMAGE_START_GAP_MS = 3_200;
+/** Pace starts as well as limiting in-flight work, avoiding shared-edge 1015 bursts. */
+const IMAGE_START_GAP_MS = 4_000;
 /**
  * The server already downloads and validates every finished image (complete
  * file + entropy) before returning its URL, so re-downloading and decoding it
@@ -843,9 +843,9 @@ function Index() {
       // onto the queue — with everyone already gone, the automatic retry
       // silently never happened. This is what made retries look broken.
       let inFlight = 0;
-      // Reserve start times synchronously before awaiting. This prevents all
-      // nine workers from consuming one key each in the same instant, which
-      // synchronized every key's cooldown and made progress stop after panel 9.
+      // Reserve start times synchronously before awaiting. Together with the
+      // three-worker ceiling, this remains effective when live hosting handles
+      // each server call in a different isolate.
       let nextImageStart = 0;
       const awaitImageStart = async () => {
         const now = Date.now();
